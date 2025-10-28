@@ -2,6 +2,6 @@ streamlit
 pathlib 
 langchain
 sqlalchemy 
-langchain_groq 
-langchain_core
-langchain_community
+langchain-groq 
+langchain-core
+langchain-community
