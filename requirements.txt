@@ -3,3 +3,5 @@ pathlib
 langchain
 sqlalchemy 
 langchain_groq 
+langchain_core
+langchain_community
