@@ -1,0 +1,10 @@
+langchain==0.0.350
+langchain-core
+langchain-community
+langchain-groq
+sqlalchemy
+mysql-connector-python
+fastapi
+uvicorn
+python-multipart
+pathlib

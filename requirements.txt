@@ -1,7 +1,0 @@
-streamlit 
-pathlib 
-langchain==0.0.350
-sqlalchemy 
-langchain-groq 
-langchain-core
-langchain-community
