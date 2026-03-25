@@ -1,6 +1,4 @@
-# =========================
-# 🐍 Python (Backend)
-# =========================
+# Python (Backend)
 __pycache__/
 *.pyc
 *.pyo
@@ -13,15 +11,7 @@ venv/
 .env.*
 !.env.example
 
-# =========================
-# 🗄️ Database
-# =========================
-# ❗ IMPORTANT: we will DISCUSS student.db below
-# student.db
 
-# =========================
-# 📦 Node / React (Frontend)
-# =========================
 node_modules/
 dist/
 build/
@@ -32,7 +22,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # =========================
-# 💻 OS / Editor Files
+#  OS / Editor Files
 # =========================
 .DS_Store
 Thumbs.db
@@ -40,6 +30,6 @@ Thumbs.db
 .idea/
 
 # =========================
-# 🚀 Misc
+#  Misc
 # =========================
 *.log
