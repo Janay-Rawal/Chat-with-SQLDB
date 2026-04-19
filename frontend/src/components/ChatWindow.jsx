@@ -11,14 +11,26 @@ const SUGGESTIONS = [
   "Show delivered vs cancelled orders breakdown",
 ];
 
-export default function ChatWindow({ sessionId, dbConfig, messages, setMessages, sidebarOpen, setSidebarOpen }) {
+export default function ChatWindow({ sessionId, dbConfig, messages, setMessages, sidebarOpen, setSidebarOpen, onBack, theme, toggleTheme }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
+  const [loadingMessage, setLoadingMessage] = useState("Thinking...");
+  const scrollRef = useRef(null);
   const textareaRef = useRef(null);
+  const shouldAutoScroll = useRef(true);
+
+  // Smart scroll: Only auto-scroll if near bottom
+  function handleScroll() {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const isAtBottom = scrollHeight - clientHeight - scrollTop < 100;
+    shouldAutoScroll.current = isAtBottom;
+  }
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldAutoScroll.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, loading]);
 
   useEffect(() => {
@@ -32,9 +44,26 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
     const q = (query || input).trim();
     if (!q || loading) return;
 
-    setMessages(prev => [...prev, { role: "user", content: q, sql_query: null, explanation: null, chart_data: null }]);
+    setMessages(prev => [...prev, {
+      role: "user",
+      content: q,
+      sql_query: null,
+      explanation: null,
+      chart_data: null,
+      data: null,
+    }]);
     setInput("");
     setLoading(true);
+    setLoadingMessage("Thinking...");
+    const startTime = Date.now();
+
+    // Cycling loading message
+    const steps = ["Thinking...", "Generating SQL...", "Fetching data..."];
+    let stepIdx = 0;
+    const interval = setInterval(() => {
+      stepIdx = (stepIdx + 1) % steps.length;
+      setLoadingMessage(steps[stepIdx]);
+    }, 2000);
 
     try {
       const res = await fetch("http://localhost:8000/api/chat", {
@@ -61,7 +90,10 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
         setMessages(prev => [...prev, {
           role: "assistant",
           content: errDetail ? `${errMsg}\n\n${errDetail}` : errMsg,
-          sql_query: null, explanation: null, chart_data: null,
+          sql_query: null,
+          explanation: null,
+          chart_data: null,
+          data: null,
           isError: true,
         }]);
         return;
@@ -70,20 +102,34 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
       setMessages(prev => [...prev, {
         role: "assistant",
         content: data.answer,
-        sql_query: data.sql_query,
-        explanation: data.explanation,
-        chart_data: data.chart_data,
+        sql_query: data.sql_query || null,
+        explanation: data.explanation || null,
+        chart_data: data.chart_data || null,
+        data: Array.isArray(data.data) ? data.data : null,
+        followups: Array.isArray(data.followups) ? data.followups : [],
+        insights: Array.isArray(data.insights) ? data.insights : [],
         isError: false,
       }]);
     } catch (err) {
       setMessages(prev => [...prev, {
         role: "assistant",
         content: `Could not reach the backend.\n\nMake sure it's running at http://localhost:8000`,
-        sql_query: null, explanation: null, chart_data: null,
+        sql_query: null,
+        explanation: null,
+        chart_data: null,
+        data: null,
         isError: true,
       }]);
     } finally {
+      // Ensure loading is visible for at least 800ms to avoid flicker
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 800 - elapsed);
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+
       setLoading(false);
+      clearInterval(interval);
     }
   }
 
@@ -91,26 +137,52 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  const showEmpty = messages.length === 1 && !loading;
+  const isEmpty = messages.length === 0;
 
   return (
     <div className="chat-window">
       {/* Topbar */}
       <div className="topbar">
-        <button className="icon-btn" onClick={() => setSidebarOpen(o => !o)} title="Toggle sidebar">
-          {sidebarOpen
-            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          }
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="icon-btn" onClick={onBack} title="Back to welcome">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <button className="icon-btn" onClick={() => setSidebarOpen(o => !o)} title="Toggle sidebar">
+            {sidebarOpen
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+            }
+          </button>
+        </div>
+
+        <div className="topbar-info">
+          <div className="topbar-mode">
+            <span className={`status-dot active`} />
+            {dbConfig.db_type === "USE_LOCALDB" ? "Using Demo Dataset" : `Connected: ${dbConfig.mysql_db}`}
+          </div>
+          {dbConfig.db_type === "USE_MYSQL" && (
+            <div className="topbar-sub">
+              {dbConfig.mysql_host} · {dbConfig.mysql_db}
+            </div>
+          )}
+        </div>
+
+        <button className="icon-btn theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+          {theme === "dark" ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="18.36" x2="5.64" y2="16.93" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+          )}
         </button>
-        <span className="topbar-title">SQL Intelligence</span>
-        <span className="db-badge">{dbConfig.db_type === "USE_LOCALDB" ? "SQLite3" : "MySQL"}</span>
       </div>
 
       {/* Messages */}
-      <div className="messages-area">
-        {showEmpty ? (
+      <div className="messages-area" ref={scrollRef} onScroll={handleScroll}>
+        {isEmpty ? (
           <div className="empty-state">
+            <div className="empty-icon">λ</div>
             <div className="empty-title">Query your data, naturally.</div>
             <div className="empty-sub">
               Ask questions in plain English. I'll generate the SQL, run it, and explain what I found.
@@ -122,10 +194,11 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => <Message key={i} msg={msg} />)
+          <>
+            {messages.map((msg, i) => <Message key={i} msg={msg} onFollowup={send} />)}
+            {loading && <TypingIndicator message={loadingMessage} />}
+          </>
         )}
-        {loading && <TypingIndicator />}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -135,10 +208,11 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
             ref={textareaRef}
             className="chat-textarea"
             rows={1}
-            placeholder="Ask anything about the database…"
+            placeholder={loading ? "Analyzing data..." : "Ask anything... e.g. 'Show top 5 customers'"}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={onKey}
+            disabled={loading}
           />
           <button
             className="send-btn"
@@ -146,8 +220,8 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
             onClick={() => send()}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
           </button>
         </div>

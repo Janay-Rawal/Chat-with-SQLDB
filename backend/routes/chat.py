@@ -5,6 +5,7 @@ from db.database import get_sql_database
 from services.llm import get_llm, build_agent, run_agent
 from services.session import get_context_string, append_message
 from services.chart import detect_chart_data
+from services.cache import query_cache
 
 router = APIRouter(tags=["chat"])
 
@@ -32,11 +33,55 @@ async def chat(req: ChatRequest):
     # Get prior context
     context = get_context_string(session_id)
 
-    # Run agent
+    # Cache check
+    cached_result = query_cache.get(req.query.strip(), req.db_type)
+    if cached_result:
+        # Persist to history even if cached
+        append_message(session_id, ChatMessage(role="user", content=req.query))
+        append_message(
+            session_id,
+            ChatMessage(
+                role="assistant",
+                content=cached_result["answer"],
+                sql_query=cached_result["sql_query"],
+                explanation=cached_result["explanation"],
+                chart_data=cached_result["chart_data"],
+            ),
+        )
+
+        return ChatResponse(
+            session_id=session_id,
+            answer=cached_result["answer"],
+            sql_query=cached_result["sql_query"],
+            explanation=cached_result["explanation"],
+            chart_data=cached_result["chart_data"],
+            data=cached_result["data"],
+            followups=cached_result["followups"],
+            insights=cached_result["insights"],
+            cached=True,
+        )
+
+    # Run agent — result now includes "data" (list[dict] rows)
     result = run_agent(agent, req.query, context)
 
-    # Detect chart
-    chart_data = detect_chart_data(result["answer"])
+    # Prefer structured data from SQL result for chart detection;
+    # fall back to scanning the answer text if data is empty.
+    structured_data = result.get("data") or []
+    chart_data = structured_data if structured_data else detect_chart_data(result["answer"])
+    followups = result.get("followups") or []
+    insights = result.get("insights") or []
+
+    # Store in cache
+    cache_entry = {
+        "answer": result["answer"],
+        "sql_query": result["sql_query"],
+        "explanation": result["explanation"],
+        "chart_data": chart_data,
+        "data": structured_data,
+        "followups": followups,
+        "insights": insights,
+    }
+    query_cache.set(req.query.strip(), req.db_type, cache_entry)
 
     # Persist to session history
     append_message(session_id, ChatMessage(role="user", content=req.query))
@@ -57,6 +102,10 @@ async def chat(req: ChatRequest):
         sql_query=result["sql_query"],
         explanation=result["explanation"],
         chart_data=chart_data,
+        data=structured_data,
+        followups=followups,
+        insights=insights,
+        cached=False,
     )
 
 

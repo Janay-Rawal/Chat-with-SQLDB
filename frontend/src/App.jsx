@@ -2,9 +2,24 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
+import WelcomeScreen from "./components/WelcomeScreen";
+import ConnectScreen from "./components/ConnectScreen";
 import "./index.css";
 
 export default function App() {
+  // mode state:
+  // null = Welcome Screen
+  // "connect" = Show ConnectScreen (MySQL Form)
+  // "demo" = Chat View (SQLite)
+  // "chat" = Chat View (Connected MySQL)
+  const [mode, setMode] = useState(() => {
+    return window.history.state?.mode ?? null;
+  });
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("sql_chat_theme") || "dark";
+  });
+
   const [sessionId] = useState(() => {
     const saved = localStorage.getItem("sql_chat_session");
     if (saved) return saved;
@@ -21,19 +36,49 @@ export default function App() {
     mysql_db: "",
   });
 
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "Hello! I'm your SQL assistant. Ask me anything about the database — I'll query it and explain the results.",
-      sql_query: null,
-      explanation: null,
-      chart_data: null,
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
 
   const [schema, setSchema] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // ── Browser history ───────────────────────────────────────
+  useEffect(() => {
+    function onPopState(e) {
+      setMode(e.state?.mode ?? null);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (theme === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+    localStorage.setItem("sql_chat_theme", theme);
+  }, [theme]);
+
+  // ── Auto-fetch schema on mode change ─────────────────────
+  useEffect(() => {
+    if ((mode === "demo" || mode === "chat") && !schema && !schemaLoading) {
+      fetchSchema(dbConfig);
+    }
+  }, [mode, dbConfig.db_type, schema, schemaLoading]);
+
+  function toggleTheme() {
+    setTheme(prev => prev === "dark" ? "light" : "dark");
+  }
+
+  function pushMode(newMode) {
+    window.history.pushState({ mode: newMode }, "");
+    setMode(newMode);
+  }
+
+  function goBack() {
+    window.history.back();
+  }
 
   async function fetchSchema(config = dbConfig) {
     setSchemaLoading(true);
@@ -55,25 +100,65 @@ export default function App() {
     }
   }
 
-  useEffect(() => { fetchSchema(); }, []);
-
   function clearChat() {
     fetch(`http://localhost:8000/api/history/${sessionId}`, { method: "DELETE" });
+    setMessages([]);
+  }
+
+  // ── Welcome screen handlers ──────────────────────────────
+  function handleDemo() {
+    const cfg = { db_type: "USE_LOCALDB", mysql_host: "", mysql_user: "", mysql_password: "", mysql_db: "" };
+    setDbConfig(cfg);
+    pushMode("demo");
+    fetchSchema(cfg);
     setMessages([{
       role: "assistant",
-      content: "Chat cleared. What would you like to know?",
-      sql_query: null,
-      explanation: null,
-      chart_data: null,
+      content: "I've loaded the **Demo Dataset** (SQLite). You can ask me questions about customers, products, or sales trends. Try: *'Who are the top 5 customers by revenue?'*.",
+      isError: false
     }]);
   }
+
+  function handleConnectRequest() {
+    pushMode("connect");
+  }
+
+  function handleConnectSubmit(form) {
+    const cfg = {
+      db_type: "USE_MYSQL",
+      mysql_host: form.host,
+      mysql_port: form.port || "3306",
+      mysql_user: form.user,
+      mysql_password: form.password,
+      mysql_db: form.db,
+    };
+    setDbConfig(cfg);
+    fetchSchema(cfg).then(() => {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Connect successful! I'm now connected to the **${cfg.mysql_db}** database on **${cfg.mysql_host}**. How can I help you today?`,
+        isError: false
+      }]);
+      pushMode("chat");
+    });
+  }
+
+  // ── Render ───────────────────────────────────────────────
+  if (!mode) {
+    return <WelcomeScreen onDemo={handleDemo} onConnect={handleConnectRequest} />;
+  }
+
+  if (mode === "connect") {
+    return <ConnectScreen onConnectSubmit={handleConnectSubmit} onBack={goBack} />;
+  }
+
+  const isChatView = mode === "demo" || mode === "chat";
 
   return (
     <div className="app-shell">
       <Sidebar
         open={sidebarOpen}
+        mode={mode}
         dbConfig={dbConfig}
-        setDbConfig={setDbConfig}
         schema={schema}
         schemaLoading={schemaLoading}
         onFetchSchema={() => fetchSchema(dbConfig)}
@@ -86,6 +171,9 @@ export default function App() {
         setMessages={setMessages}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
+        onBack={goBack}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
     </div>
   );

@@ -26,6 +26,10 @@ class ChatResponse(BaseModel):
     sql_query: Optional[str] = None
     explanation: Optional[str] = None
     chart_data: Optional[Any] = None
+    data: Optional[List[Any]] = None
+    followups: Optional[List[str]] = None
+    insights: Optional[List[str]] = None
+    cached: Optional[bool] = False
 
 
 class ErrorResponse(BaseModel):
