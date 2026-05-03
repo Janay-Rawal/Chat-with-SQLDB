@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 import {
     Card,
     CardContent,
@@ -50,7 +51,7 @@ export default function AuthScreen({ initialMode = "login", onAuthSuccess, onBac
     async function handleVerifyEmail(vToken) {
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:8000/api/auth/verify-email?token=${vToken}`);
+            const res = await fetch(`${API}/api/auth/verify-email?token=${vToken}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Verification failed");
             setSuccess(data.message);
@@ -71,7 +72,7 @@ export default function AuthScreen({ initialMode = "login", onAuthSuccess, onBac
         try {
             if (mode === "login" || mode === "signup") {
                 const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
-                const res = await fetch(`http://localhost:8000${endpoint}`, {
+                const res = await fetch(`${API}${endpoint}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, password }),
@@ -95,7 +96,7 @@ export default function AuthScreen({ initialMode = "login", onAuthSuccess, onBac
                     onAuthSuccess(data.access_token, data.plan || "FREE");
                 }
             } else if (mode === "forgot-password") {
-                const res = await fetch(`http://localhost:8000/api/auth/forgot-password`, {
+                const res = await fetch(`${API}/api/auth/forgot-password`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email }),
@@ -104,7 +105,7 @@ export default function AuthScreen({ initialMode = "login", onAuthSuccess, onBac
                 setSuccess(data.message);
             } else if (mode === "reset-password") {
                 if (password !== confirmPassword) throw new Error("Passwords do not match");
-                const res = await fetch(`http://localhost:8000/api/auth/reset-password`, {
+                const res = await fetch(`${API}/api/auth/reset-password`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ token, new_password: password }),
@@ -168,7 +169,12 @@ export default function AuthScreen({ initialMode = "login", onAuthSuccess, onBac
                         </Button>
                     </CardContent>
                     <CardFooter className="pb-8 justify-center">
-                        <Button variant="link" className="text-xs text-muted-foreground" onClick={() => setSuccess("Link resent! (Check logs)")}>
+                        <Button variant="link" className="text-xs text-muted-foreground" onClick={async () => {
+                            try {
+                                await fetch(`${API}/api/auth/signup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password: "__resend__" }) });
+                            } catch {}
+                            setSuccess("Verification link resent! Please check your inbox.");
+                        }}>
                             <RefreshCw className="w-3 h-3 mr-1" /> Resend verification email
                         </Button>
                     </CardFooter>

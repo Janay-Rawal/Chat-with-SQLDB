@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: chat-with-sqldb-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # Set manually in Render dashboard
+      - key: JWT_SECRET_KEY
+        sync: false          # Set manually in Render dashboard
+      - key: SENDER_EMAIL
+        value: janayrapple@gmail.com
+      - key: SENDER_APP_PASSWORD
+        sync: false          # Set manually in Render dashboard (Gmail App Password)
+      - key: FRONTEND_URL
+        sync: false          # Set to your Vercel URL after deploying frontend
+      - key: ALLOWED_ORIGINS
+        sync: false          # Set to your Vercel URL (comma-separated if multiple)
+    autoDeploy: true

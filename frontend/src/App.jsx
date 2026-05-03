@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 import { v4 as uuidv4 } from "uuid";
 
 import Sidebar from "./components/Sidebar";
@@ -125,7 +126,7 @@ export default function App() {
         params.append("mysql_password", config.mysql_password);
         params.append("mysql_db", config.mysql_db);
       }
-      const res = await fetch(`http://localhost:8000/api/schema?${params}`, {
+      const res = await fetch(`${API}/api/schema?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) return logout();
@@ -143,7 +144,7 @@ export default function App() {
 
   async function fetchSessions() {
     try {
-      const res = await fetch("http://localhost:8000/api/sessions", {
+      const res = await fetch(`${API}/api/sessions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) return logout();
@@ -196,7 +197,7 @@ export default function App() {
     console.log("🧹 confirmDeleteAll executing...");
     setShowDeleteConfirm(false);
     try {
-      const res = await fetch("http://localhost:8000/api/history", {
+      const res = await fetch(`${API}/api/history`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -250,7 +251,7 @@ export default function App() {
 
   async function handleUpgrade() {
     try {
-      const res = await fetch("http://localhost:8000/api/auth/upgrade", {
+      const res = await fetch(`${API}/api/auth/upgrade`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 import Message from "./Message";
 import TypingIndicator from "./TypingIndicator";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,7 @@ export default function ChatWindow({
   // Load history from API on mount
   useEffect(() => {
     let active = true;
-    fetch(`http://localhost:8000/api/history/${sessionId}`, {
+    fetch(`${API}/api/history/${sessionId}`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => {
@@ -127,7 +128,7 @@ export default function ChatWindow({
     }, 2000);
 
     try {
-      const res = await fetch("http://localhost:8000/api/chat", {
+      const res = await fetch(`${API}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -181,7 +182,7 @@ export default function ChatWindow({
     } catch (err) {
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: `Could not reach the backend.\n\nMake sure it's running at http://localhost:8000`,
+        content: `Could not reach the backend. Please try again.`,
         sql_query: null,
         explanation: null,
         chart_data: null,

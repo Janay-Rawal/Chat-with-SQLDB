@@ -1,5 +1,7 @@
+import os
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, EmailStr
+from dotenv import load_dotenv
 from services.user_service import (
     create_user, 
     get_user_by_email, 
@@ -9,6 +11,12 @@ from services.user_service import (
     reset_user_password
 )
 from services.auth_service import create_access_token, get_current_user_id
+from services.email_service import send_verification_email, send_password_reset_email
+
+load_dotenv()
+
+# Base URL for email links — use env var so it works both locally and in prod
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,14 +42,13 @@ async def signup(req: AuthRequest):
     if not user:
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
-    # Simulate sending email
-    print("\n" + "="*50)
-    print("📧 SIMULATED EMAIL: Verify your account")
-    print(f"To: {req.email}")
-    print(f"Link: http://localhost:5173/verify-email?token={user.verification_token}")
-    print("="*50 + "\n")
+    # Send real verification email
+    sent = send_verification_email(req.email, user.verification_token, FRONTEND_URL)
+    msg = "Verification email sent. Please check your inbox."
+    if not sent:
+        msg += " (Check server logs — SMTP may not be configured.)"
 
-    return {"message": "Verification email sent. Please check your inbox (and console logs!)."}
+    return {"message": msg}
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: AuthRequest):
@@ -52,7 +59,8 @@ async def login(req: AuthRequest):
             detail="Incorrect email or password"
         )
     
-    if not user.is_verified:
+    # Treat is_verified as truthy — SQLite can return 0/1 or True/False
+    if not bool(user.is_verified):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Please verify your email before logging in"
@@ -72,14 +80,9 @@ async def verify_email(token: str):
 async def forgot_password(req: ForgotPasswordRequest):
     token = create_password_reset_token(req.email)
     if token:
-        # Simulate sending email
-        print("\n" + "="*50)
-        print("📧 SIMULATED EMAIL: Reset your password")
-        print(f"To: {req.email}")
-        print(f"Link: http://localhost:5173/reset-password?token={token}")
-        print("="*50 + "\n")
+        send_password_reset_email(req.email, token, FRONTEND_URL)
     
-    # Always return success message for security (don't reveal if email exists)
+    # Always return success for security (don't reveal if email exists)
     return {"message": "If this email is registered, you will receive a reset link shortly."}
 
 @router.post("/reset-password")
@@ -97,7 +100,3 @@ async def upgrade_plan(user_id: int = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="Failed to upgrade plan")
     
     return {"message": "Upgraded successfully", "plan": "PRO"}
-
-
-
-
