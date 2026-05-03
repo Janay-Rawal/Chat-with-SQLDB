@@ -1,4 +1,25 @@
 import { useState } from "react";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardFooter
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+    ChevronLeft,
+    Database,
+    Server,
+    ShieldCheck,
+    Globe,
+    ArrowRight,
+    Loader2
+} from "lucide-react";
 
 export default function ConnectScreen({ onConnectSubmit, onBack }) {
     const [form, setForm] = useState({
@@ -18,83 +39,127 @@ export default function ConnectScreen({ onConnectSubmit, onBack }) {
     }
 
     return (
-        <div className="welcome-overlay">
-            <div className="welcome-card" style={{ maxWidth: "440px", textAlign: "left", alignItems: "flex-start" }}>
-                <button className="icon-btn" onClick={onBack} style={{ marginBottom: "12px", marginLeft: "-8px" }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                    <span style={{ fontSize: "13px", marginLeft: "4px" }}>Back</span>
-                </button>
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-6 py-12 animate-in fade-in zoom-in-95 duration-500">
+            <div className="w-full max-w-xl">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mb-6 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={onBack}
+                >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Back to Dashboard
+                </Button>
 
-                <h1 className="welcome-title" style={{ marginBottom: "4px" }}>Connect MySQL</h1>
-                <p className="welcome-desc" style={{ marginBottom: "20px" }}>
-                    Provide your database credentials to start querying.
-                </p>
-
-                <form onSubmit={handleSubmit} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "16px" }}>
-                    <div className="welcome-section">
-                        <label className="welcome-section-title" style={{ display: "block", marginBottom: "8px" }}>Host & Port</label>
-                        <div style={{ display: "flex", gap: "12px" }}>
-                            <input
-                                className="chat-textarea"
-                                style={{ height: "40px" }}
-                                placeholder="localhost"
-                                value={form.host}
-                                onChange={e => setForm({ ...form, host: e.target.value })}
-                                required
-                            />
-                            <input
-                                className="chat-textarea"
-                                style={{ height: "40px", width: "90px" }}
-                                placeholder="3306"
-                                value={form.port}
-                                onChange={e => setForm({ ...form, port: e.target.value })}
-                                required
-                            />
+                <Card className="border-border shadow-xl bg-card">
+                    <CardHeader className="space-y-1 pb-6 border-b">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                                <Database className="w-5 h-5" />
+                            </div>
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold">MySQL Database</Badge>
                         </div>
-                    </div>
+                        <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Connect Your Database</CardTitle>
+                        <CardDescription className="text-muted-foreground">
+                            Provide your database credentials to initialize the SQL assistant session.
+                        </CardDescription>
+                    </CardHeader>
 
-                    <div className="welcome-section">
-                        <label className="welcome-section-title" style={{ display: "block", marginBottom: "8px" }}>Authentication</label>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                            <input
-                                className="chat-textarea"
-                                style={{ height: "40px" }}
-                                placeholder="Username"
-                                value={form.user}
-                                onChange={e => setForm({ ...form, user: e.target.value })}
-                                required
-                            />
-                            <input
-                                className="chat-textarea"
-                                style={{ height: "40px" }}
-                                type="password"
-                                placeholder="Password"
-                                value={form.password}
-                                onChange={e => setForm({ ...form, password: e.target.value })}
-                            />
-                        </div>
-                    </div>
+                    <form onSubmit={handleSubmit}>
+                        <CardContent className="space-y-6 pt-6">
+                            {/* Host & Port */}
+                            <div className="grid grid-cols-4 gap-4">
+                                <div className="col-span-3 space-y-2">
+                                    <Label htmlFor="host" className="flex items-center gap-2">
+                                        <Globe className="w-3.5 h-3.5 text-muted-foreground" /> Hostname / IP
+                                    </Label>
+                                    <Input
+                                        id="host"
+                                        placeholder="localhost"
+                                        value={form.host}
+                                        onChange={e => setForm({ ...form, host: e.target.value })}
+                                        required
+                                        className="transition-all hover:border-primary/50 focus:border-primary"
+                                    />
+                                </div>
+                                <div className="col-span-1 space-y-2">
+                                    <Label htmlFor="port">Port</Label>
+                                    <Input
+                                        id="port"
+                                        placeholder="3306"
+                                        value={form.port}
+                                        onChange={e => setForm({ ...form, port: e.target.value })}
+                                        required
+                                        className="transition-all hover:border-primary/50 focus:border-primary"
+                                    />
+                                </div>
+                            </div>
 
-                    <div className="welcome-section">
-                        <label className="welcome-section-title" style={{ display: "block", marginBottom: "8px" }}>Database Name</label>
-                        <input
-                            className="chat-textarea"
-                            style={{ height: "40px" }}
-                            placeholder="e.g. sales_db"
-                            value={form.db}
-                            onChange={e => setForm({ ...form, db: e.target.value })}
-                            required
-                        />
-                    </div>
+                            {/* Authentication */}
+                            <div className="space-y-4 pt-2 border-t border-dashed">
+                                <div className="space-y-2">
+                                    <Label htmlFor="user" className="flex items-center gap-2">
+                                        <Server className="w-3.5 h-3.5 text-muted-foreground" /> Username
+                                    </Label>
+                                    <Input
+                                        id="user"
+                                        placeholder="root"
+                                        value={form.user}
+                                        onChange={e => setForm({ ...form, user: e.target.value })}
+                                        required
+                                        className="transition-all hover:border-primary/50 focus:border-primary"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="password" className="flex items-center gap-2">
+                                        <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Password
+                                    </Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={form.password}
+                                        onChange={e => setForm({ ...form, password: e.target.value })}
+                                        className="transition-all hover:border-primary/50 focus:border-primary"
+                                    />
+                                </div>
+                            </div>
 
-                    <div className="divider" style={{ margin: "8px 0" }} />
+                            {/* Database Name */}
+                            <div className="space-y-2 pt-2 border-t border-dashed">
+                                <Label htmlFor="db" className="flex items-center gap-2 text-primary font-semibold">
+                                    Database Name
+                                </Label>
+                                <Input
+                                    id="db"
+                                    placeholder="e.g. ecommerce_db"
+                                    value={form.db}
+                                    onChange={e => setForm({ ...form, db: e.target.value })}
+                                    required
+                                    className="h-11 font-medium transition-all hover:border-primary/50 focus:border-primary"
+                                />
+                                <p className="text-[11px] text-muted-foreground italic">
+                                    Note: Your credentials are encrypted and never stored in plain text.
+                                </p>
+                            </div>
+                        </CardContent>
 
-                    <button className="btn-primary" type="submit" disabled={loading}>
-                        {loading ? "Connecting..." : "Connect & Initialize"}
-                    </button>
-                </form>
+                        <CardFooter className="pb-8 pt-2">
+                            <Button className="w-full h-11 text-base font-semibold shadow-lg shadow-primary/20 transition-all hover:translate-y-[-1px] active:translate-y-[1px]" type="submit" disabled={loading}>
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        Establishing Secure Connection...
+                                    </>
+                                ) : (
+                                    <>
+                                        Connect & Initialize Session <ArrowRight className="ml-2 w-5 h-5" />
+                                    </>
+                                )}
+                            </Button>
+                        </CardFooter>
+                    </form>
+                </Card>
             </div>
         </div>
     );

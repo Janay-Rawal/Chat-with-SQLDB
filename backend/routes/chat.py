@@ -1,17 +1,19 @@
 import uuid
 from fastapi import APIRouter, HTTPException
 from models.schemas import ChatRequest, ChatResponse, ChatMessage
-from db.database import get_sql_database
+from db.query_db import get_sql_database
 from services.llm import get_llm, build_agent, run_agent
 from services.session import get_context_string, append_message
 from services.chart import detect_chart_data
 from services.cache import query_cache
+from services.auth_service import get_current_user_id
+from fastapi import Depends
 
 router = APIRouter(tags=["chat"])
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, user_id: int = Depends(get_current_user_id)):
     # Validate query
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=400, detail={"error": "Query cannot be empty"})
@@ -31,14 +33,15 @@ async def chat(req: ChatRequest):
     agent = build_agent(db, llm)
 
     # Get prior context
-    context = get_context_string(session_id)
+    context = get_context_string(user_id, session_id)
 
     # Cache check
     cached_result = query_cache.get(req.query.strip(), req.db_type)
     if cached_result:
         # Persist to history even if cached
-        append_message(session_id, ChatMessage(role="user", content=req.query))
+        append_message(user_id, session_id, ChatMessage(role="user", content=req.query), db_type=req.db_type)
         append_message(
+            user_id,
             session_id,
             ChatMessage(
                 role="assistant",
@@ -47,6 +50,7 @@ async def chat(req: ChatRequest):
                 explanation=cached_result["explanation"],
                 chart_data=cached_result["chart_data"],
             ),
+            db_type=req.db_type,
         )
 
         return ChatResponse(
@@ -84,8 +88,9 @@ async def chat(req: ChatRequest):
     query_cache.set(req.query.strip(), req.db_type, cache_entry)
 
     # Persist to session history
-    append_message(session_id, ChatMessage(role="user", content=req.query))
+    append_message(user_id, session_id, ChatMessage(role="user", content=req.query), db_type=req.db_type)
     append_message(
+        user_id,
         session_id,
         ChatMessage(
             role="assistant",
@@ -94,6 +99,7 @@ async def chat(req: ChatRequest):
             explanation=result["explanation"],
             chart_data=chart_data,
         ),
+        db_type=req.db_type,
     )
 
     return ChatResponse(
@@ -110,13 +116,25 @@ async def chat(req: ChatRequest):
 
 
 @router.get("/history/{session_id}")
-async def get_history(session_id: str):
+async def get_history(session_id: str, user_id: int = Depends(get_current_user_id)):
     from services.session import get_history
-    return {"session_id": session_id, "messages": get_history(session_id)}
+    return {"session_id": session_id, "messages": get_history(user_id, session_id)}
 
+
+@router.get("/sessions")
+async def get_sessions(user_id: int = Depends(get_current_user_id)):
+    from services.session import get_user_sessions
+    return {"sessions": get_user_sessions(user_id)}
+
+
+@router.delete("/history")
+async def clear_all_history(user_id: int = Depends(get_current_user_id)):
+    from services.session import clear_user_history
+    clear_user_history(user_id)
+    return {"status": "all_cleared"}
 
 @router.delete("/history/{session_id}")
-async def clear_history(session_id: str):
+async def clear_history(session_id: str, user_id: int = Depends(get_current_user_id)):
     from services.session import clear_history
-    clear_history(session_id)
+    clear_history(user_id, session_id)
     return {"status": "cleared", "session_id": session_id}

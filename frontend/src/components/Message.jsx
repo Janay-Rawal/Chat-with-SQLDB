@@ -1,29 +1,30 @@
 import { useState } from "react";
 import ChartView from "./ChartView";
 import TableView from "./TableView";
-
-function Collapsible({ label, dotColor, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="collapsible">
-      <div className="collapsible-header" onClick={() => setOpen(o => !o)}>
-        <span className="collapsible-label">
-          <span className="sql-dot" style={dotColor ? { background: dotColor } : {}} />
-          {label}
-        </span>
-        <svg
-          className={`chevron ${open ? "open" : ""}`}
-          width="12" height="12" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </div>
-      {open && <div className="collapsible-body">{children}</div>}
-    </div>
-  );
-}
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import {
+  Copy,
+  Check,
+  Terminal,
+  Info,
+  BarChart3,
+  Table as TableIcon,
+  Lightbulb,
+  CornerDownRight,
+  User,
+  Zap,
+  AlertCircle
+} from "lucide-react";
 
 export default function Message({ msg, onFollowup }) {
   const [copied, setCopied] = useState(false);
@@ -33,110 +34,162 @@ export default function Message({ msg, onFollowup }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
-  console.log("🧠 MESSAGE OBJECT:", msg);
+
   const isUser = msg.role === "user";
-
-  // The chart source: prefer chart_data (pre-structured), fall back to raw data array
   const chartSource = msg.chart_data || (msg.data?.length >= 2 ? msg.data : null);
-  console.log("📊 chartSource:", chartSource);
-
   const hasFollowups = !isUser && !msg.isError && msg.followups?.length > 0;
 
-  return (
-    <div className={`message-row ${isUser ? "user" : ""}`}>
-      <div className={`avatar ${isUser ? "user" : "bot"}`}>
-        {isUser ? "U" : "λ"}
+  if (isUser) {
+    return (
+      <div className="flex justify-end mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex gap-3 max-w-[85%]">
+          <div className="flex flex-col items-end">
+            <div className="bg-primary text-primary-foreground px-4 py-2.5 rounded-2xl rounded-tr-none shadow-sm text-sm">
+              {msg.content}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 border shadow-sm">
+            <User className="w-4 h-4 text-muted-foreground" />
+          </div>
+        </div>
       </div>
+    );
+  }
 
-      <div className="bubble-wrap">
-        {/* Assistant Cards */}
-        {!isUser && (
-          <>
-            <div className={`content-card ${msg.isError ? "error-card" : ""}`} style={{ marginTop: 0 }}>
-              <span className="content-card-label">
-                {msg.isError ? "System Status" : "Assistant Response"}
-              </span>
-              <div className={`bubble bot ${msg.isError ? "error" : ""}`} style={{ padding: 0, background: "transparent", border: "none", boxShadow: "none", fontSize: "14px" }}>
-                {msg.isError && <span style={{ marginRight: "6px" }}>⚠️</span>}
-                {msg.content}
+  return (
+    <div className="flex justify-start mb-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex gap-3 w-full max-w-[95%]">
+        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20 shadow-sm mt-1">
+          <Zap className="w-4 h-4 text-primary fill-primary/20" />
+        </div>
+
+        <div className="flex flex-col gap-4 flex-1 overflow-hidden">
+          {/* Principal Response Card */}
+          <Card className={`overflow-hidden border shadow-sm ${msg.isError ? "border-destructive/30 bg-destructive/5" : ""}`}>
+            <CardHeader className="py-3 px-4 bg-muted/30 flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2">
+                {msg.isError ? <AlertCircle className="w-4 h-4 text-destructive" /> : <Info className="w-4 h-4 text-primary" />}
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {msg.isError ? "System Status" : "Assistant Response"}
+                </CardTitle>
               </div>
+              {!msg.isError && <Badge variant="outline" className="text-[10px] font-bold uppercase bg-background">Insight</Badge>}
+            </CardHeader>
+            <CardContent className="p-4 text-sm leading-relaxed">
+              <div className="whitespace-pre-wrap">{msg.content}</div>
 
               {!msg.isError && msg.insights?.length > 0 && (
-                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
-                  <span className="content-card-label" style={{ fontSize: "10px", marginBottom: "8px", display: "block" }}>Key Insights</span>
-                  <ul className="insights-list" style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                <div className="mt-4 pt-4 border-t flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-yellow-500" />
+                    <span className="text-xs font-bold text-foreground">Key Insights</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
                     {msg.insights.map((insight, i) => (
-                      <li key={i} style={{ color: "var(--text1)", fontSize: "13px", marginBottom: "4px" }}>{insight}</li>
+                      <div key={i} className="flex gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded-md border border-border/40">
+                        <span className="text-primary font-bold">•</span>
+                        <span>{insight}</span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Table — shown above chart */}
-            {msg.data?.length > 0 && (
-              <div className="content-card" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "14px 18px 0" }}><span className="content-card-label">Result Data</span></div>
+          {/* Data Table Card */}
+          {msg.data?.length > 0 && (
+            <Card className="overflow-hidden border shadow-sm">
+              <CardHeader className="py-2 px-4 bg-muted/30 flex-row items-center gap-2 space-y-0">
+                <TableIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Result Set</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 border-t">
                 <TableView data={msg.data} />
-              </div>
-            )}
+              </CardContent>
+              <CardFooter className="py-2 px-4 bg-muted/10 flex justify-end">
+                <span className="text-[10px] text-muted-foreground font-medium">{msg.data.length} rows returned</span>
+              </CardFooter>
+            </Card>
+          )}
 
-            {/* Chart — shown inline */}
-            {chartSource && (
-              <div className="content-card">
-                <span className="content-card-label">Visualization</span>
+          {/* Visualization Card */}
+          {chartSource && (
+            <Card className="overflow-hidden border shadow-sm">
+              <CardHeader className="py-2 px-4 bg-muted/30 flex-row items-center gap-2 space-y-0">
+                <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
+                <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Visualization</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 border-t">
                 <ChartView data={chartSource} />
-              </div>
-            )}
+              </CardContent>
+            </Card>
+          )}
 
-            {/* SQL Query */}
-            {msg.sql_query && (
-              <div className="content-card">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <span className="content-card-label" style={{ marginBottom: 0 }}>SQL Query</span>
-                  <button className="copy-btn" onClick={() => copyToClipboard(msg.sql_query)}>
-                    {copied ? "Copied!" : (
-                      <>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        Copy
-                      </>
-                    )}
-                  </button>
+          {/* Technical Details (SQL & Explanation) */}
+          {(msg.sql_query || msg.explanation) && (
+            <Card className="border border-border/60 bg-transparent overflow-hidden shadow-none">
+              <CardHeader className="py-2 px-4 bg-muted/10 flex-row items-center justify-between space-y-0 border-b">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+                  <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Technical Details</CardTitle>
                 </div>
-                <pre className="sql-code" style={{ margin: 0, background: "rgba(0,0,0,0.2)", padding: "12px", borderRadius: "8px", fontSize: "12px", border: "1px solid var(--border)" }}>{msg.sql_query}</pre>
-              </div>
-            )}
+              </CardHeader>
+              <CardContent className="p-0">
+                {msg.sql_query && (
+                  <div className="p-4 border-b last:border-b-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Generated SQL</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-[10px] h-7 px-2"
+                        onClick={() => copyToClipboard(msg.sql_query)}
+                      >
+                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copied ? "Copied" : "Copy SQL"}
+                      </Button>
+                    </div>
+                    <pre className="text-[11px] font-mono bg-muted/80 p-3 rounded-md border text-foreground/90 overflow-x-auto whitespace-pre">
+                      {msg.sql_query}
+                    </pre>
+                  </div>
+                )}
+                {msg.explanation && (
+                  <div className="p-4">
+                    <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground block mb-1.5">Logic Explanation</span>
+                    <p className="text-xs text-muted-foreground leading-relaxed italic border-l-2 pl-3 border-muted">
+                      {msg.explanation}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Explanation */}
-            {msg.explanation && (
-              <div className="content-card">
-                <span className="content-card-label">Explanation</span>
-                <p className="explanation-text" style={{ margin: 0, fontSize: "13.5px", color: "var(--text2)" }}>{msg.explanation}</p>
+          {/* Follow-ups */}
+          {hasFollowups && (
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center gap-2 px-1">
+                <CornerDownRight className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Suggested Follow-ups</span>
               </div>
-            )}
-
-            {/* Follow-up suggestions */}
-            {hasFollowups && (
-              <div className="followup-chips">
-                <div className="followup-label">Suggested follow-ups:</div>
+              <div className="flex flex-wrap gap-2 pr-4">
                 {msg.followups.map((q, i) => (
-                  <button key={i} className="followup-chip" onClick={() => onFollowup(q)}>
-                    <span style={{ opacity: 0.6 }}>↳</span> {q}
-                  </button>
+                  <Button
+                    key={i}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-full text-xs bg-background hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all border-border/80 shadow-sm"
+                    onClick={() => onFollowup(q)}
+                  >
+                    {q}
+                  </Button>
                 ))}
               </div>
-            )}
-          </>
-        )}
-
-        {/* User Message Bubble */}
-        {isUser && (
-          <div className="bubble user">
-            {msg.content}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

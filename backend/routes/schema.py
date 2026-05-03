@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional
 from sqlalchemy import inspect, text
-from db.database import get_raw_engine
+from db.query_db import get_raw_engine
 from models.schemas import SchemaResponse, TableSchema, TableColumn
+from services.auth_service import get_current_user_id
 
 router = APIRouter(tags=["schema"])
 
@@ -14,6 +15,7 @@ async def get_schema(
     mysql_user: Optional[str] = Query(None),
     mysql_password: Optional[str] = Query(None),
     mysql_db: Optional[str] = Query(None),
+    user_id: int = Depends(get_current_user_id),
 ):
     try:
         engine = get_raw_engine(db_type, mysql_host, mysql_user, mysql_password, mysql_db)

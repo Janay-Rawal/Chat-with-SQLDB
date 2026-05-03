@@ -1,8 +1,26 @@
 import { useState, useRef, useEffect } from "react";
 import Message from "./Message";
 import TypingIndicator from "./TypingIndicator";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  ChevronLeft,
+  PanelLeft,
+  Sun,
+  Moon,
+  LogOut,
+  Send,
+  Database,
+  Cpu,
+  MessageSquare,
+  Sparkles,
+  Command
+} from "lucide-react";
 
-const SUGGESTIONS = [
+const DEMO_SUGGESTIONS = [
   "Show top 5 customers by total spending",
   "Which product category generates the most revenue?",
   "How many orders were placed each month in 2024?",
@@ -11,13 +29,57 @@ const SUGGESTIONS = [
   "Show delivered vs cancelled orders breakdown",
 ];
 
-export default function ChatWindow({ sessionId, dbConfig, messages, setMessages, sidebarOpen, setSidebarOpen, onBack, theme, toggleTheme }) {
+const EXPLORATION_SUGGESTIONS = [
+  "Show all tables in this database",
+  "What data is available in these tables?",
+  "Show me sample rows from each table",
+  "Summarize the database schema",
+  "Which table has the most records?",
+  "List all columns for the first table",
+];
+
+export default function ChatWindow({
+  sessionId,
+  dbConfig,
+  messages,
+  setMessages,
+  sidebarOpen,
+  setSidebarOpen,
+  onBack,
+  theme,
+  toggleTheme,
+  onLogout,
+  token,
+  onMessageSent
+}) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Thinking...");
   const scrollRef = useRef(null);
+
+  const activeSuggestions = dbConfig?.db_type === "USE_LOCALDB"
+    ? DEMO_SUGGESTIONS
+    : EXPLORATION_SUGGESTIONS;
   const textareaRef = useRef(null);
   const shouldAutoScroll = useRef(true);
+
+  // Load history from API on mount
+  useEffect(() => {
+    let active = true;
+    fetch(`http://localhost:8000/api/history/${sessionId}`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then((res) => {
+        if (res.status === 401) return onLogout();
+        return res.json();
+      })
+      .then((data) => {
+        if (active && data && data.messages) {
+          setMessages(data.messages);
+        }
+      });
+    return () => { active = false; };
+  }, [sessionId, token]);
 
   // Smart scroll: Only auto-scroll if near bottom
   function handleScroll() {
@@ -57,7 +119,6 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
     setLoadingMessage("Thinking...");
     const startTime = Date.now();
 
-    // Cycling loading message
     const steps = ["Thinking...", "Generating SQL...", "Fetching data..."];
     let stepIdx = 0;
     const interval = setInterval(() => {
@@ -68,7 +129,10 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
     try {
       const res = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           query: q,
           session_id: sessionId,
@@ -81,6 +145,8 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
           }),
         }),
       });
+
+      if (res.status === 401) return onLogout();
 
       const data = await res.json();
 
@@ -110,6 +176,8 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
         insights: Array.isArray(data.insights) ? data.insights : [],
         isError: false,
       }]);
+
+      if (onMessageSent) onMessageSent();
     } catch (err) {
       setMessages(prev => [...prev, {
         role: "assistant",
@@ -121,7 +189,6 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
         isError: true,
       }]);
     } finally {
-      // Ensure loading is visible for at least 800ms to avoid flicker
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, 800 - elapsed);
       if (remaining > 0) {
@@ -140,92 +207,122 @@ export default function ChatWindow({ sessionId, dbConfig, messages, setMessages,
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="chat-window">
+    <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden font-sans">
       {/* Topbar */}
-      <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button className="icon-btn" onClick={onBack} title="Back to welcome">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <button className="icon-btn" onClick={() => setSidebarOpen(o => !o)} title="Toggle sidebar">
-            {sidebarOpen
-              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
-            }
-          </button>
-        </div>
-
-        <div className="topbar-info">
-          <div className="topbar-mode">
-            <span className={`status-dot active`} />
-            {dbConfig.db_type === "USE_LOCALDB" ? "Using Demo Dataset" : `Connected: ${dbConfig.mysql_db}`}
+      <header className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-4 z-20">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onBack} title="Back to welcome" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(o => !o)} title="Toggle sidebar" className={`h-8 w-8 transition-colors ${sidebarOpen ? "text-primary bg-primary/10" : "text-muted-foreground"}`}>
+            <PanelLeft className="w-4 h-4" />
+          </Button>
+          <Separator orientation="vertical" className="h-6 mx-2" />
+          <div className="flex items-center gap-2 px-1">
+            <div className={`w-2 h-2 rounded-full ${dbConfig.db_type === "USE_LOCALDB" ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"}`} />
+            <span className="text-sm font-semibold tracking-tight truncate max-w-[200px] text-foreground/90">
+              {dbConfig.db_type === "USE_LOCALDB" ? "Demo Dataset" : dbConfig.mysql_db}
+            </span>
           </div>
-          {dbConfig.db_type === "USE_MYSQL" && (
-            <div className="topbar-sub">
-              {dbConfig.mysql_host} · {dbConfig.mysql_db}
-            </div>
-          )}
         </div>
 
-        <button className="icon-btn theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
-          {theme === "dark" ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="18.36" x2="5.64" y2="16.93" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
-          )}
-        </button>
-      </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 text-muted-foreground hover:text-foreground">
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onLogout} className="h-9 w-9 text-muted-foreground hover:text-destructive">
+            <LogOut className="w-4 h-4" />
+          </Button>
+        </div>
+      </header>
 
       {/* Messages */}
-      <div className="messages-area" ref={scrollRef} onScroll={handleScroll}>
-        {isEmpty ? (
-          <div className="empty-state">
-            <div className="empty-icon">λ</div>
-            <div className="empty-title">Query your data, naturally.</div>
-            <div className="empty-sub">
-              Ask questions in plain English. I'll generate the SQL, run it, and explain what I found.
-            </div>
-            <div className="suggestion-chips">
-              {SUGGESTIONS.map(s => (
-                <button key={s} className="chip" onClick={() => send(s)}>{s}</button>
-              ))}
-            </div>
+      <main className="flex-1 overflow-hidden relative">
+        <ScrollArea className="h-full px-4 pt-4" ref={scrollRef} onScroll={handleScroll}>
+          <div className="max-w-4xl mx-auto pb-32">
+            {isEmpty ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-2xl mx-auto animate-in fade-in duration-1000">
+                <div className="relative mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-3xl shadow-sm border border-primary/20 relative z-10">
+                    λ
+                  </div>
+                  <div className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl -z-0 opacity-50" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight mb-2">Ready for your first query?</h1>
+                <p className="text-muted-foreground mb-10 leading-relaxed text-sm max-w-md">
+                  Ask questions in plain English. I'll translate them to SQL, query your database, and provide insights.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full px-4">
+                  {activeSuggestions.map(s => (
+                    <Button
+                      key={s}
+                      variant="outline"
+                      className="justify-start h-auto py-3 px-4 text-xs font-medium bg-card/50 hover:bg-accent hover:text-accent-foreground transition-all flex items-start gap-3 whitespace-normal border-border/60 shadow-sm text-left group"
+                      onClick={() => send(s)}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 transition-transform group-hover:scale-110" />
+                      <span>{s}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((msg, i) => <Message key={i} msg={msg} onFollowup={send} />)}
+                {loading && (
+                  <div className="flex justify-start mb-8 animate-in fade-in duration-300">
+                    <div className="flex gap-3 w-full">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20 shadow-sm mt-1">
+                        <Cpu className="w-4 h-4 text-primary animate-pulse" />
+                      </div>
+                      <TypingIndicator message={loadingMessage} />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            {messages.map((msg, i) => <Message key={i} msg={msg} onFollowup={send} />)}
-            {loading && <TypingIndicator message={loadingMessage} />}
-          </>
-        )}
-      </div>
+        </ScrollArea>
+      </main>
 
       {/* Input */}
-      <div className="input-bar">
-        <div className="input-row">
-          <textarea
-            ref={textareaRef}
-            className="chat-textarea"
-            rows={1}
-            placeholder={loading ? "Analyzing data..." : "Ask anything... e.g. 'Show top 5 customers'"}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={onKey}
-            disabled={loading}
-          />
-          <button
-            className="send-btn"
-            disabled={loading || !input.trim()}
-            onClick={() => send()}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-10 z-10">
+        <div className="max-w-4xl mx-auto">
+          <Card className="shadow-lg border-border/80 focus-within:ring-1 focus-within:ring-primary/40 transition-shadow">
+            <CardContent className="p-2">
+              <div className="flex flex-col">
+                <textarea
+                  ref={textareaRef}
+                  className="w-full bg-transparent border-none focus:ring-0 text-sm resize-none py-3 px-4 min-h-[50px] max-h-[150px] placeholder:text-muted-foreground/60 scrollbar-none"
+                  placeholder={loading ? "Analyzing data..." : "Ask anything... e.g. 'Show top 5 customers'"}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={onKey}
+                  disabled={loading}
+                />
+                <div className="flex items-center justify-between px-2 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] h-5 font-mono text-muted-foreground/70 bg-muted/50 border-none select-none">
+                      <Command className="w-2.5 h-2.5 mr-1" /> ENTER
+                    </Badge>
+                  </div>
+                  <Button
+                    className="h-9 px-4 rounded-lg shadow-sm transition-all"
+                    disabled={loading || !input.trim()}
+                    onClick={() => send()}
+                    size="sm"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    <span>Send</span>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <p className="text-[10px] text-muted-foreground/40 text-center mt-3 font-medium uppercase tracking-[0.2em] select-none">
+            Powered by Lambda SQL Engine
+          </p>
         </div>
-        <div className="input-hint">Enter to send · Shift+Enter for newline</div>
       </div>
     </div>
   );

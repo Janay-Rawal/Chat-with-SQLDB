@@ -11,7 +11,12 @@ LOCAL_DB = "USE_LOCALDB"
 MYSQL = "USE_MYSQL"
 
 # Path to the SQLite file — lives next to this file's parent (backend/)
-DB_PATH = (Path(__file__).parent.parent / "student.db").absolute()
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / "student.db"
+
+# Ensure directory exists
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+print(f"📁 Local database path (student.db): {DB_PATH}")
 
 
 def get_sql_database(
@@ -23,7 +28,7 @@ def get_sql_database(
 ) -> SQLDatabase:
     try:
         if db_type == LOCAL_DB:
-            creator = lambda: sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+            creator = lambda: sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
             return SQLDatabase(create_engine("sqlite:///", creator=creator))
 
         elif db_type == MYSQL:
