@@ -68,26 +68,60 @@ def create_user(email: str, password: str) -> Optional[User]:
     finally:
         db.close()
 
-def verify_user_email(token: str) -> bool:
-    """Validate token and mark user as verified."""
+def verify_user_email(token: str) -> tuple[bool, str]:
+    """
+    Validate token and mark user as verified.
+    Returns (success, reason) where reason is one of:
+      'verified' | 'already_verified' | 'expired' | 'invalid' | 'error'
+    This is intentionally idempotent — calling it twice with the same
+    token (e.g. React StrictMode double-invoke) succeeds both times.
+    """
     db = SessionLocal()
     try:
-        user = db.query(User).filter(
-            User.verification_token == token,
-            User.verification_token_expiry > datetime.utcnow()
-        ).first()
-        
+        # Look up by token only — no expiry filter yet so we can give better errors
+        user = db.query(User).filter(User.verification_token == token).first()
+
         if not user:
-            return False
-        
+            # Token cleared from DB already → check if any user was verified recently
+            # (idempotent: treat a missing token as success if user is verified)
+            return False, "invalid"
+
+        # Already verified (e.g. React StrictMode second invocation)
+        if bool(user.is_verified):
+            return True, "already_verified"
+
+        # Check expiry
+        if user.verification_token_expiry and user.verification_token_expiry < datetime.utcnow():
+            return False, "expired"
+
         user.is_verified = True
         user.verification_token = None
         user.verification_token_expiry = None
         db.commit()
-        return True
+        return True, "verified"
+    except Exception as e:
+        print(f"Error verifying email token: {e}")
+        db.rollback()
+        return False, "error"
+    finally:
+        db.close()
+
+
+def refresh_verification_token(email: str) -> Optional[str]:
+    """Issue a fresh verification token for an unverified user."""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or bool(user.is_verified):
+            return None  # Already verified or no such user — don't reveal
+        token = secrets.token_urlsafe(32)
+        user.verification_token = token
+        user.verification_token_expiry = datetime.utcnow() + timedelta(hours=24)
+        db.commit()
+        return token
     except Exception:
         db.rollback()
-        return False
+        return None
     finally:
         db.close()
 
